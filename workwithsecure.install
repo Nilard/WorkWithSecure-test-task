@@ -1,0 +1,60 @@
+<?php
+/**
+ * @file
+ * Install, update and uninstall functions for the WorkWithSecure module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function workwithsecure_install() {
+  // Define field basics
+  $field_name = 'field_user_last_name';
+  $entity_type = 'user';
+  $bundle = 'user';
+
+  // Create field base
+  if (!field_info_field($field_name)) {
+    $field = array(
+      'field_name' => $field_name,
+      'type' => 'text',
+    );
+    field_create_field($field);
+
+    // Create field instance
+    if (!field_info_instance($entity_type, $field_name, $bundle)) {
+      $instance = array(
+        'field_name' => $field_name,
+        'entity_type' => $entity_type,
+        'bundle' => $bundle,
+        'label' => t('Last name'),
+      );
+      field_create_instance($instance);
+    }
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function workwithsecure_uninstall() {
+  // Define field basics
+  $field_name = 'field_user_last_name';
+  $entity_type = 'user';
+  $bundle = 'user';
+
+  // Delete field instance
+  if (field_info_instance($entity_type, $field_name, $bundle)) {
+    $instance = array(
+      'field_name' => $field_name,
+      'entity_type' => $entity_type,
+      'bundle' => $bundle,
+    );
+    field_delete_instance($instance);
+  }
+
+  // Delete field base
+  if (field_info_field($field_name)) {
+    field_delete_field($field_name);
+  }
+}

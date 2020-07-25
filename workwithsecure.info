@@ -1,0 +1,5 @@
+name = WorkWithSecure
+description = WorkWithSecure test task
+core = 7.x
+package = WorkWithSecure
+version = 7.x-1.0

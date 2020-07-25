@@ -1,0 +1,97 @@
+<?php
+/**
+ * @file
+ * Code for the WorkWithSecure module.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function workwithsecure_menu() {
+  $items['admin/config/people/accounts/last-name-update'] = array(
+    'title' => 'Update Last name',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('workwithsecure_last_name_update_form'),
+    'access arguments' => array('access content'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  return $items;
+}
+
+/**
+ * Form constructor.
+ */
+function workwithsecure_last_name_update_form($form, &$form_state) {
+  $form['last_name'] = array(
+    '#title' => t('Last name'),
+    '#type' => 'textfield',
+    '#required' => TRUE,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update'),
+  );
+
+  return $form;
+}
+
+/**
+ * Form submit callback.
+ */
+function workwithsecure_last_name_update_form_submit($form, &$form_state) {
+  if (!empty($form_state['values']['last_name'])) {
+    // Get all users uids.
+    $uids = db_select('users')
+      ->fields('users', array('uid'))
+      ->condition('uid', 0, '>')
+      ->execute()->fetchAll(PDO::FETCH_COLUMN);
+
+    // Prepare batch operations.
+    if (!empty($uids)) {
+      $operations = array();
+      foreach ($uids as $uid) {
+        $variables = array('uid' => $uid, 'last_name' => $form_state['values']['last_name']);
+        $operations[] = array('workwithsecure_last_name_update_batch_run', array($variables));
+      }
+
+      // Run batch.
+      if (!empty($operations)) {
+        batch_set(array('operations' => $operations, 'finished' => 'workwithsecure_last_name_update_batch_finished'));
+        batch_process();
+      }
+    }
+  }
+}
+
+/**
+ * Batch operation callback.
+ */
+function workwithsecure_last_name_update_batch_run($variables, &$context) {
+  if (!empty($variables['uid']) && !empty($variables['last_name'])) {
+    if (function_exists('entity_metadata_wrapper')) {
+      // Update field value using Entity API: https://www.drupal.org/project/entity
+      $account = entity_metadata_wrapper('user', $variables['uid']);
+      $account->field_user_last_name = $variables['last_name'];
+      $account->save();
+      $context['results']['success'] = !empty($context['results']['success']) ? $context['results']['success'] + 1 : 1;
+    }
+    else {
+      // Update field value according official path:
+      // https://www.drupal.org/docs/7/creating-custom-modules/howtos/how-to-change-a-field-value
+      $account = user_load($variables['uid'], TRUE);
+      $account->field_user_last_name[field_language('user', $account, 'field_user_last_name')][0]['value'] = $variables['last_name'];
+      user_save($account);
+      $context['results']['success'] = !empty($context['results']['success']) ? $context['results']['success'] + 1 : 1;
+    }
+  }
+}
+
+/**
+ * Batch finished callback.
+ */
+function workwithsecure_last_name_update_batch_finished($success, $results, $operations) {
+  if ($success && !empty($results['success'])) {
+    drupal_set_message(format_plural($results['success'], 'Successfully updated 1 user account.', 'Successfully updated @count user accounts.'));
+  }
+}
