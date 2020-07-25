@@ -8,7 +8,7 @@
  * Implements hook_install().
  */
 function workwithsecure_install() {
-  // Define field basics
+  // #1 Create field (text field: Last name) programatycally for users.
   $field_name = 'field_user_last_name';
   $entity_type = 'user';
   $bundle = 'user';
@@ -21,7 +21,7 @@ function workwithsecure_install() {
     );
     field_create_field($field);
 
-    // Create field instance
+    // Create field instance.
     if (!field_info_instance($entity_type, $field_name, $bundle)) {
       $instance = array(
         'field_name' => $field_name,
@@ -32,18 +32,24 @@ function workwithsecure_install() {
       field_create_instance($instance);
     }
   }
+
+  // Make multilingual option for custom text field enabled by default.
+  $variable_realm_list_language = variable_get('variable_realm_list_language', array());
+  if (!in_array('workwithsecure_multilanguage_text_field', $variable_realm_list_language)) {
+    $variable_realm_list_language[] = 'workwithsecure_multilanguage_text_field';
+    variable_set('variable_realm_list_language', $variable_realm_list_language);
+  }
 }
 
 /**
  * Implements hook_uninstall().
  */
 function workwithsecure_uninstall() {
-  // Define field basics
   $field_name = 'field_user_last_name';
   $entity_type = 'user';
   $bundle = 'user';
 
-  // Delete field instance
+  // Delete field instance.
   if (field_info_instance($entity_type, $field_name, $bundle)) {
     $instance = array(
       'field_name' => $field_name,
@@ -53,8 +59,11 @@ function workwithsecure_uninstall() {
     field_delete_instance($instance);
   }
 
-  // Delete field base
+  // Delete field base.
   if (field_info_field($field_name)) {
     field_delete_field($field_name);
   }
+
+  // Delete variables.
+  variable_del('workwithsecure_multilanguage_text_field');
 }

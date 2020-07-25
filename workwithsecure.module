@@ -8,13 +8,35 @@
  * Implements hook_menu().
  */
 function workwithsecure_menu() {
+  // #2 Create admin page (custom webform) where admin can insert identical value last name for all users. Use BatchAPI.
   $items['admin/config/people/accounts/last-name-update'] = array(
     'title' => 'Update Last name',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('workwithsecure_last_name_update_form'),
-    'access arguments' => array('access content'),
+    'access arguments' => array('administer users'),
     'type' => MENU_LOCAL_TASK,
   );
+
+  // #3 Create custom multilanguage text field for custom webform (creates web-form with one text field).
+  $items['admin/config/system/workwithsecure-multilingual'] = array(
+    'title' => 'Multilanguage text field',
+    'description' => 'Create custom multilanguage text field for custom webform (creates web-form with one text field).',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('workwithsecure_multilanguage_text_field_form'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // #4 Create admin page (custom webform) with 3 fields (secrectapi, data1, data2). When user click on Submit, it will send GET-query to example.com with arguments from fields.
+  $items['admin/config/system/workwithsecure-get-query'] = array(
+    'title' => 'WorkWithSecure GET-query',
+    'description' => 'Create admin page (custom webform) with 3 fields (secrectapi, data1, data2). When user click on Submit, it will send GET-query to example.com with arguments from fields.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('workwithsecure_get_query_form'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
   return $items;
 }
 
@@ -22,10 +44,10 @@ function workwithsecure_menu() {
  * Form constructor.
  */
 function workwithsecure_last_name_update_form($form, &$form_state) {
+  // Create admin page (custom webform) where admin can insert identical value last name for all users. Use BatchAPI.
   $form['last_name'] = array(
     '#title' => t('Last name'),
     '#type' => 'textfield',
-    '#required' => TRUE,
   );
 
   $form['submit'] = array(
@@ -40,26 +62,24 @@ function workwithsecure_last_name_update_form($form, &$form_state) {
  * Form submit callback.
  */
 function workwithsecure_last_name_update_form_submit($form, &$form_state) {
-  if (!empty($form_state['values']['last_name'])) {
-    // Get all users uids.
-    $uids = db_select('users')
-      ->fields('users', array('uid'))
-      ->condition('uid', 0, '>')
-      ->execute()->fetchAll(PDO::FETCH_COLUMN);
+  // Get all users uids.
+  $uids = db_select('users')
+    ->fields('users', array('uid'))
+    ->condition('uid', 0, '>')
+    ->execute()->fetchAll(PDO::FETCH_COLUMN);
 
-    // Prepare batch operations.
-    if (!empty($uids)) {
-      $operations = array();
-      foreach ($uids as $uid) {
-        $variables = array('uid' => $uid, 'last_name' => $form_state['values']['last_name']);
-        $operations[] = array('workwithsecure_last_name_update_batch_run', array($variables));
-      }
+  // Prepare batch operations.
+  if (!empty($uids)) {
+    $operations = array();
+    foreach ($uids as $uid) {
+      $variables = array('uid' => $uid, 'last_name' => $form_state['values']['last_name']);
+      $operations[] = array('workwithsecure_last_name_update_batch_run', array($variables));
+    }
 
-      // Run batch.
-      if (!empty($operations)) {
-        batch_set(array('operations' => $operations, 'finished' => 'workwithsecure_last_name_update_batch_finished'));
-        batch_process();
-      }
+    // Run batch.
+    if (!empty($operations)) {
+      batch_set(array('operations' => $operations, 'finished' => 'workwithsecure_last_name_update_batch_finished'));
+      batch_process();
     }
   }
 }
@@ -68,22 +88,19 @@ function workwithsecure_last_name_update_form_submit($form, &$form_state) {
  * Batch operation callback.
  */
 function workwithsecure_last_name_update_batch_run($variables, &$context) {
-  if (!empty($variables['uid']) && !empty($variables['last_name'])) {
-    if (function_exists('entity_metadata_wrapper')) {
-      // Update field value using Entity API: https://www.drupal.org/project/entity
-      $account = entity_metadata_wrapper('user', $variables['uid']);
-      $account->field_user_last_name = $variables['last_name'];
-      $account->save();
-      $context['results']['success'] = !empty($context['results']['success']) ? $context['results']['success'] + 1 : 1;
-    }
-    else {
-      // Update field value according official path:
-      // https://www.drupal.org/docs/7/creating-custom-modules/howtos/how-to-change-a-field-value
-      $account = user_load($variables['uid'], TRUE);
-      $account->field_user_last_name[field_language('user', $account, 'field_user_last_name')][0]['value'] = $variables['last_name'];
-      user_save($account);
-      $context['results']['success'] = !empty($context['results']['success']) ? $context['results']['success'] + 1 : 1;
-    }
+  if (function_exists('entity_metadata_wrapper')) {
+    // Update field value using Entity API (https://www.drupal.org/project/entity) if module is installed.
+    $account = entity_metadata_wrapper('user', $variables['uid']);
+    $account->field_user_last_name = $variables['last_name'];
+    $account->save();
+    $context['results']['success'] = !empty($context['results']['success']) ? $context['results']['success'] + 1 : 1;
+  }
+  else {
+    // Update field value directly according official path.
+    $account = user_load($variables['uid'], TRUE);
+    $account->field_user_last_name[field_language('user', $account, 'field_user_last_name')][0]['value'] = $variables['last_name'];
+    user_save($account);
+    $context['results']['success'] = !empty($context['results']['success']) ? $context['results']['success'] + 1 : 1;
   }
 }
 
@@ -94,4 +111,81 @@ function workwithsecure_last_name_update_batch_finished($success, $results, $ope
   if ($success && !empty($results['success'])) {
     drupal_set_message(format_plural($results['success'], 'Successfully updated 1 user account.', 'Successfully updated @count user accounts.'));
   }
+}
+
+/**
+ * Implements hook_variable_info().
+ */
+function workwithsecure_variable_info($options) {
+  // Define variables as multilingual.
+  $variables['workwithsecure_multilanguage_text_field'] = array(
+    'type' => 'string',
+    'title' => t('WorkWithSecure multilanguage text field'),
+    'description' => t('WorkWithSecure test task.'),
+    'localize' => TRUE,
+  );
+
+  return $variables;
+}
+
+/**
+ * Form constructor.
+ */
+function workwithsecure_multilanguage_text_field_form($form, &$form_state) {
+  // Create custom multilanguage text field for custom webform (creates web-form with one text field).
+  $form['workwithsecure_multilanguage_text_field'] = array(
+    '#title' => t('Multilanguage text field'),
+    '#type' => 'textfield',
+    '#default_value' => variable_get('workwithsecure_multilanguage_text_field'),
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * Form constructor.
+ */
+function workwithsecure_get_query_form($form, &$form_state) {
+  // Create admin page (custom webform) with 3 fields (secrectapi, data1, data2).
+  $form['secrectapi'] = array(
+    '#title' => t('Secret API'),
+    '#type' => 'textfield',
+  );
+
+  $form['data1'] = array(
+    '#title' => t('Data 1'),
+    '#type' => 'textfield',
+  );
+
+  $form['data2'] = array(
+    '#title' => t('Data 2'),
+    '#type' => 'textfield',
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+
+  return $form;
+}
+
+/**
+ * Form submit callback.
+ */
+function workwithsecure_get_query_form_submit($form, &$form_state) {
+  // When user click on Submit, it will send GET-query to example.com with arguments from fields.
+  $result = drupal_http_request('http://example.com/', array(
+    'method' => 'GET',
+    'data' => drupal_http_build_query(array(
+      'secrectapi' => $form_state['values']['secrectapi'],
+      'data1' => $form_state['values']['data1'],
+      'data2' => $form_state['values']['data2'],
+    )),
+  ));
+
+  drupal_set_message(t('GET request sent. Response: @code @status_message', array(
+    '@code' => $result->code,
+    '@status_message' => !empty($result->status_message) ? $result->status_message : $result->error,
+  )), !empty($result->error) ? 'error' : 'status');
 }
